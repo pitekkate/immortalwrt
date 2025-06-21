@@ -17,12 +17,7 @@ jobs:
     steps:
     - name: Checkout ImmortalWrt source
       uses: actions/checkout@v4
-      with:
-        repository: pitekkate/immortalwrt
-        ref: rk322x  # Menggunakan branch khusus RK322x
-        submodules: recursive
-        path: immortalwrt
-
+      
     - name: Prepare HK1Mini support files
       working-directory: ./immortalwrt
       run: |
