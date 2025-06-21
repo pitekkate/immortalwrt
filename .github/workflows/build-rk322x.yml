@@ -11,28 +11,39 @@ jobs:
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 180
+    container:
+      image: ubuntu:22.04
 
     steps:
     - name: Checkout ImmortalWrt source
       uses: actions/checkout@v4
       with:
         repository: pitekkate/immortalwrt
-        # Menggunakan branch yang valid dan tersedia
-        ref: openwrt-23.05
+        ref: rk322x  # Menggunakan branch khusus RK322x
         submodules: recursive
-        # Meningkatkan depth fetch untuk memastikan semua branch terambil
+        path: immortalwrt
+        # Perbaikan untuk masalah safe directory dan fetch
         fetch-depth: 0
-        # Mengatasi masalah safe directory
         set-safe-directory: true
-        # Menambahkan token akses
         token: ${{ secrets.GITHUB_TOKEN }}
 
-    - name: Add HK1Mini support files
+    - name: Verify repository branch
       run: |
-        # Membuat struktur direktori
+        cd immortalwrt
+        current_branch=$(git rev-parse --abbrev-ref HEAD)
+        echo "Current branch: $current_branch"
+        if [ "$current_branch" != "rk322x" ]; then
+          echo "::error::❌ Wrong branch! Expected 'rk322x' but found '$current_branch'"
+          exit 1
+        fi
+
+    - name: Prepare HK1Mini support files
+      working-directory: ./immortalwrt
+      run: |
+        # Create ARMv7 directory structure
         mkdir -p target/linux/rockchip/armv7/{config,image,base-files/etc/board.d,patches-6.1}
         
-        # File Makefile untuk ARMv7
+        # Add Makefile for ARMv7 subtarget
         cat << EOF > target/linux/rockchip/armv7/Makefile
         ARCH:=arm
         BOARD:=rockchip
@@ -46,7 +57,7 @@ jobs:
         endef
         EOF
         
-        # Profil perangkat HK1Mini
+        # Add device profile
         cat << EOF > target/linux/rockchip/armv7/image/armv7.mk
         include \$(TOPDIR)/rules.mk
         include \$(INCLUDE_DIR)/image.mk
@@ -62,12 +73,13 @@ jobs:
         TARGET_DEVICES += hk1mini-rk3229
         EOF
         
-        # Konfigurasi jaringan
+        # Add network config
+        mkdir -p target/linux/rockchip/armv7/base-files/etc/board.d
         cat << "EOF" > target/linux/rockchip/armv7/base-files/etc/board.d/02_network
         #!/bin/sh
         . /lib/functions/uci-defaults.sh
         board_config_update
-        case "\$(board_name)" in
+        case "$(board_name)" in
         hk1mini-rk3229)
             ucidef_set_interface_lan "eth0"
             ;;
@@ -76,7 +88,7 @@ jobs:
         EOF
         chmod +x target/linux/rockchip/armv7/base-files/etc/board.d/02_network
         
-        # Menambahkan patch DTS
+        # Add DTS patch
         cat << "EOF" > target/linux/rockchip/armv7/patches-6.1/1000-add-hk1mini-dts.patch
         [Isi patch DTS HK1Mini di sini]
         EOF
@@ -84,20 +96,23 @@ jobs:
 
     - name: Install build dependencies
       run: |
-        sudo apt-get update -qq
-        sudo apt-get install -y --no-install-recommends \
+        apt-get update -qq
+        apt-get install -y --no-install-recommends \
           build-essential clang flex bison g++ gawk gcc-multilib g++-multilib \
           gettext git libncurses5-dev libssl-dev python3-distutils rsync unzip \
-          zlib1g-dev file wget curl ca-certificates
+          zlib1g-dev file wget curl ca-certificates upx-ucl jq
 
     - name: Setup build environment
+      working-directory: ./immortalwrt
       run: |
         echo "FORCE_UNSAFE_CONFIGURE=1" >> $GITHUB_ENV
         ulimit -n 1024
+        [ -d staging_dir/host ] || mkdir -p staging_dir/host
 
     - name: Prepare configuration
+      working-directory: ./immortalwrt
       run: |
-        # Membuat konfigurasi default
+        # Set default config for HK1Mini
         cat > .config << EOF
         CONFIG_TARGET_rockchip=y
         CONFIG_TARGET_rockchip_armv7=y
@@ -109,25 +124,64 @@ jobs:
         CONFIG_PACKAGE_luci-proto-ipv6=y
         CONFIG_PACKAGE_luci-proto-ppp=y
         CONFIG_PACKAGE_luci-theme-bootstrap=y
+        # Kernel modules
+        CONFIG_PACKAGE_kmod-usb-net-rtl8152=y
+        CONFIG_PACKAGE_kmod-rtl8723bs=y
+        CONFIG_PACKAGE_iw=y
+        CONFIG_PACKAGE_wpa-cli=y
+        # Utilities
+        CONFIG_PACKAGE_htop=y
+        CONFIG_PACKAGE_tmux=y
+        CONFIG_PACKAGE_curl=y
         EOF
 
+    - name: Verify RK3229 target configuration
+      working-directory: ./immortalwrt
+      run: |
+        # Check if target is Rockchip ARMv7
+        if ! grep -q 'CONFIG_TARGET_rockchip_armv7=y' .config; then
+          echo "::error::❌ Target architecture is not Rockchip ARMv7!"
+          echo "Current target: $(grep 'CONFIG_TARGET' .config || echo 'Not found')"
+          echo "Skipping build process"
+          exit 1
+        fi
+        
+        # Check if specific device is HK1Mini RK3229
+        if ! grep -q 'CONFIG_TARGET_rockchip_armv7_DEVICE_hk1mini-rk3229=y' .config; then
+          echo "::error::❌ Target device is not HK1Mini RK3229!"
+          echo "Current device: $(grep 'CONFIG_TARGET_rockchip_armv7_DEVICE' .config || echo 'Not found')"
+          echo "Skipping build process"
+          exit 1
+        fi
+        
+        echo "::notice::✅ Target verified: HK1Mini RK3229 (ARMv7)"
+        echo "Proceeding with build..."
+
     - name: Update feeds
+      working-directory: ./immortalwrt
       run: |
         ./scripts/feeds update -a
         ./scripts/feeds install -a
 
     - name: Build firmware
+      working-directory: ./immortalwrt
       run: |
         make defconfig
         make download -j8
         make -j$(($(nproc) + 1)) V=s
 
-    - name: Upload firmware artifact
+    - name: Archive firmware
+      working-directory: ./immortalwrt
+      run: |
+        mkdir -p artifacts
+        cp bin/targets/rockchip/armv7/*.img.gz artifacts/
+        cp bin/targets/rockchip/armv7/*.manifest artifacts/
+
+    - name: Upload firmware artifacts
       uses: actions/upload-artifact@v4
-      if: success()
       with:
         name: hk1mini-firmware
-        path: bin/targets/rockchip/armv7/*.img.gz
+        path: immortalwrt/artifacts/*
         retention-days: 7
 
     - name: Upload build logs
@@ -136,6 +190,6 @@ jobs:
       with:
         name: build-logs
         path: |
-          logs/*.log
-          build_dir/*/log.txt
+          immortalwrt/logs/*.log
+          immortalwrt/build_dir/*/log.txt
         retention-days: 3
