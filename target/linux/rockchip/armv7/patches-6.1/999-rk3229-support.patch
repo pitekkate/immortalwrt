@@ -1,0 +1,10 @@
+--- a/arch/arm/boot/dts/Makefile
++++ b/arch/arm/boot/dts/Makefile
+@@ -116,6 +116,7 @@
+ 	rk3229-evb.dtb \
+ 	rk3229-xms6.dtb \
+ 	rk3229-box.dtb \
++	rk3229-hk1mini.dtb \
+ 	rk3288-evb.dtb \
+ 	rk3288-fennec.dtb \
+ 	rk3288-firefly.dtb \
