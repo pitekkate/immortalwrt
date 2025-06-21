@@ -1,10 +1,6 @@
 name: Build ImmortalWrt for HK1Mini RK3229
 
 on:
-  push:
-    branches: [ rk322x ]
-  pull_request:
-    branches: [ rk322x ]
   workflow_dispatch:
 
 jobs:
