@@ -1,3 +1,13 @@
+#!/bin/sh
+
+. /lib/functions/uci-defaults.sh
+
+board_config_update
+
+case "$(board_name)" in
 hk1mini-rk3229)
-  ucidef_set_interface_lan "eth0"
-  ;;
+    ucidef_set_interface_lan "eth0"
+    ;;
+esac
+
+board_config_flush
