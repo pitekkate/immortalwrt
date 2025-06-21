@@ -1,0 +1,166 @@
+From: HK1Mini-Support <support@immortalwrt.org>
+Date: Sat, 21 Jun 2025 00:00:00 +0700
+Subject: [PATCH] add DTS for HK1Mini RK3229 TV Box
+
+Add Device Tree Source for HK1Mini RK3229 TV Box
+
+Signed-off-by: HK1Mini-Support <support@immortalwrt.org>
+---
+ arch/arm/boot/dts/rk3229-hk1mini.dts | 144 +++++++++++++++++++++++++++++++++++
+ 1 file changed, 144 insertions(+)
+ create mode 100644 arch/arm/boot/dts/rk3229-hk1mini.dts
+
+diff --git a/arch/arm/boot/dts/rk3229-hk1mini.dts b/arch/arm/boot/dts/rk3229-hk1mini.dts
+new file mode 100644
+index 000000000000..d6b0d8c1a1b7
+--- /dev/null
++++ b/arch/arm/boot/dts/rk3229-hk1mini.dts
+@@ -0,0 +1,144 @@
++// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
++/*
++ * Copyright (c) 2025 ImmortalWrt.org
++ */
++
++/dts-v1/;
++#include "rk322x-box.dtsi"
++
++/ {
++	model = "HK1 Mini RK3229";
++	compatible = "hk1mini,rk3229", "rockchip,rk3229";
++
++	chosen {
++		bootargs = "earlycon=uart8250,mmio32,0x11030000 console=ttyS0,115200n8";
++	};
++
++	gpio-leds {
++		compatible = "gpio-leds";
++
++		power_led: led-0 {
++			label = "power_led";
++			gpios = <&gpio3 RK_PC5 GPIO_ACTIVE_HIGH>;
++			default-state = "on";
++			linux,default-trigger = "heartbeat";
++		};
++
++		status_led: led-1 {
++			label = "status_led";
++			gpios = <&gpio0 RK_PA0 GPIO_ACTIVE_HIGH>;
++			default-state = "off";
++		};
++	};
++
++	gpio-keys {
++		compatible = "gpio-keys";
++		#address-cells = <1>;
++		#size-cells = <0>;
++		autorepeat;
++
++		reset {
++			label = "reset";
++			gpios = <&gpio3 RK_PC1 GPIO_ACTIVE_LOW>;
++			linux,code = <KEY_RESTART>;
++			debounce-interval = <100>;
++			wakeup-source;
++		};
++	};
++
++	vcc_otg_vbus: otg-vbus-regulator {
++		compatible = "regulator-fixed";
++		regulator-name = "vcc_otg_vbus";
++		regulator-min-microvolt = <5000000>;
++		regulator-max-microvolt = <5000000>;
++		gpio = <&gpio3 RK_PC6 GPIO_ACTIVE_HIGH>;
++		enable-active-high;
++	};
++
++	vcc_sd: sdmmc-regulator {
++		compatible = "regulator-fixed";
++		gpio = <&gpio2 RK_PA6 GPIO_ACTIVE_LOW>;
++		regulator-name = "vcc_sd";
++		regulator-min-microvolt = <3300000>;
++		regulator-max-microvolt = <3300000>;
++		vin-supply = <&vcc_io>;
++	};
++};
++
++&emmc {
++	cap-mmc-highspeed;
++	non-removable;
++	status = "okay";
++};
++
++&gmac {
++	assigned-clocks = <&cru SCLK_MAC_SRC>;
++	assigned-clock-rates = <50000000>;
++	clock_in_out = "output";
++	phy-handle = <&phy>;
++	phy-mode = "rmii";
++	phy-supply = <&vcc_phy>;
++	status = "okay";
++
++	mdio {
++		compatible = "snps,dwmac-mdio";
++		#address-cells = <1>;
++		#size-cells = <0>;
++
++		phy: ethernet-phy@0 {
++			compatible = "ethernet-phy id001c.c916";
++			reg = <0>;
++			phy-is-integrated;
++			resets = <&cru SRST_GMAC>;
++			reset-names = "mac-phy";
++		};
++	};
++};
++
++&io_domains {
++	vccio1-supply = <&vcc_io>;
++	vccio2-supply = <&vcc_io>;
++	vccio3-supply = <&vcc_io>;
++	vccio4-supply = <&vcc_io>;
++	status = "okay";
++};
++
++&sdio {
++	cap-sd-highspeed;
++	card-detect-delay = <200>;
++	status = "okay";
++	vmmc-supply = <&vcc_sd>;
++};
++
++&tsadc {
++	rockchip,hw-tshut-mode = <0>; /* tshut mode 0:CRU 1:GPIO */
++	rockchip,hw-tshut-polarity = <0>; /* tshut polarity 0:LOW 1:HIGH */
++	status = "okay";
++};
++
++&uart0 {
++	status = "okay";
++};
++
++&uart1 {
++	status = "disabled";
++};
++
++&uart2 {
++	status = "disabled";
++};
++
++&usb_otg {
++	vbus-supply = <&vcc_otg_vbus>;
++	status = "okay";
++};
++
++&usb_host0_ehci {
++	status = "okay";
++};
++
++&usb_host0_ohci {
++	status = "okay";
++};
++
++&vop {
++	status = "okay";
++};
+-- 
+2.34.1
